@@ -1,0 +1,14 @@
+cowcleaner.ko
+.cowcleaner.ko.cmd
+cowcleaner.mod.c
+cowcleaner.mod.o
+.cowcleaner.mod.o.cmd
+cowcleaner.o
+.cowcleaner.o.cmd
+cowpatch.o
+.cowpatch.o.cmd
+modules.order
+Module.symvers
+stubs.o
+.stubs.o.cmd
+.tmp_versions
