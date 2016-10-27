@@ -41,6 +41,8 @@ extern uint64_t cowcleaner_epilogue;
 
 static int __init cowcleaner_init(void)
 {
+	int cpu;
+
 	printk(KERN_INFO "cowcleaner: Performing sanity checks...\n");
 	if (ptr_marker == 0) {
 		printk(KERN_INFO
@@ -97,7 +99,6 @@ patch to:
 		return -EINVAL;
 	}
 	if (ptr_inline != 0) {
-		uint32_t inline_offset;
 		movrdi = (uint32_t *) ptr_inline;
 		if ((*movrdi & 0xf0ffff) != 0xf0894c) {
 			printk(KERN_INFO
@@ -105,6 +106,20 @@ patch to:
 			       *movrdi);
 			return -EINVAL;
 		}
+	} else if (ptr_redirect != 0) {
+		jne = (uint16_t *) ptr_redirect;
+		if (*jne != 0x850f && *jne != 0x840f) {
+			printk(KERN_INFO
+			       "cowcleaner: Invalid ptr_redirect value: %x.\n",
+			       *jne);
+			return -EINVAL;
+		}
+	}
+
+	cpu = get_cpu();
+	local_irq_disable();
+	if (ptr_inline != 0) {
+		uint32_t inline_offset;
 		movrdi_restore = *((uint64_t *) ptr_inline);
 		inline_offset =
 		    (long)(ptr_inline) - (uint64_t) & cowcleaner_epilogue;
@@ -121,13 +136,6 @@ patch to:
 		      5) << 8) | (movrdi_restore & 0xffff000000000000ULL);
 		cowcleaner_l64 = ptr_l64 - ((long)&cowcleaner_l64) - 4;
 	} else if (ptr_redirect != 0) {
-		jne = (uint16_t *) ptr_redirect;
-		if (*jne != 0x850f && *jne != 0x840f) {
-			printk(KERN_INFO
-			       "cowcleaner: Invalid ptr_redirect value: %x.\n",
-			       *jne);
-			return -EINVAL;
-		}
 		jne_restore = *(uint32_t *) (ptr_redirect + 2);
 		cr0 = read_cr0();
 		write_cr0(cr0 & (~0x10000));
@@ -140,6 +148,9 @@ patch to:
 	t2_restore = *t2;
 	*t2 = (*t2 & 0xff000000) | 0x40cc80;
 	write_cr0(cr0);
+	put_cpu();
+	local_irq_enable();
+
 	printk(KERN_INFO "cowcleaner: Started!\n");
 	return 0;
 }
