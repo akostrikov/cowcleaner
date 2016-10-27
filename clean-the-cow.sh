@@ -135,9 +135,6 @@ done
 vm_normal_page=$(lookup vm_normal_page | cut -d' ' -f1)
 [ -z "$vm_normal_page" ] && { echo "$0: cannot resolve vm_normal_page." >&2; exit 1; }
 
-_raw_spin_unlock=$(lookup _raw_spin_unlock | cut -d' ' -f1)
-[ -z "$_raw_spin_unlock" ] && { echo "$0: cannot resolve _raw_spin_unlock." >&2; exit 1; }
-
 FUNCS=$(mktemp func.XXXXXX.S)
 atexit rm -f $FUNCS
 
@@ -147,13 +144,13 @@ __get_user_pages=$(lookup __get_user_pages)
 GUPS=$(mktemp gups.XXXXXX.S)
 atexit rm -f $GUPS
 
-objdump -d --start-address=0x${ptr% *} --stop-address=0x${ptr#* } $VMLINUX | sed -e "s/0x$vm_normal_page/vm_normal_page/g" -e "s/0x$_raw_spin_unlock/_raw_spin_unlock/g" > $FUNCS
+objdump -d --start-address=0x${ptr% *} --stop-address=0x${ptr#* } $VMLINUX | sed -e "s/0x$vm_normal_page/vm_normal_page/g" > $FUNCS
 if grep -q 0x4010 $FUNCS; then
 	echo "Congratulations, your kernel seems to be already patched against dirty cow." >&2
 	exit 0
 fi
 
-objdump -d --start-address=0x${__get_user_pages% *} --stop-address=0x${__get_user_pages#* } $VMLINUX | sed -e "s/0x$vm_normal_page/vm_normal_page/g" -e "s/0x$_raw_spin_unlock/_raw_spin_unlock/g" > $GUPS
+objdump -d --start-address=0x${__get_user_pages% *} --stop-address=0x${__get_user_pages#* } $VMLINUX | sed -e "s/0x$vm_normal_page/vm_normal_page/g" > $GUPS
 
 OPS=$(grep -m1 'test\s*\$0x8,%al' $GUPS -A6 | cut -d $'\t' -f3 | cut -d' ' -f1 | xargs)
 
@@ -178,7 +175,7 @@ else
 fi
 
 echo "Calculating L64 xrefs…"
-x=$(sed "1,/^$e:/p" -n $FUNCS | grep "0x$e\$"  | tail -n1)
+x=$(sed "1,/^$e:/p" -n $FUNCS | grep "0x$e\$" | tail -n1)
 
 if [ -n "$x" ]; then
 	echo "XREF $x"
@@ -202,5 +199,5 @@ if [ -z "$JE" ]; then
 	insmod cowcleaner.ko ptr_inline=$((0x$inline)) ptr_marker=$((0x$t)) ptr_l64=$((0x$e))
 else
 	echo "0x$x calls L149 with a weak condition. Redirecting…"
-        insmod cowcleaner.ko ptr_redirect=$((0x$x+4)) ptr_marker=$((0x$t)) ptr_l64=$((0x$e))
+        insmod cowcleaner.ko ptr_redirect=$((0x${JE%:*})) ptr_marker=$((0x$t)) ptr_l64=$((0x$e))
 fi
